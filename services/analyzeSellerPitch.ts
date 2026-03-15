@@ -31,10 +31,16 @@ export function analyzeSellerPitch(input: string) {
   const claims = detectClaims(session);
   const risks = classifyRiskFlags(session);
   const rewrite = rewriteSellerPitch(input);
+  const highRiskCount = risks.filter((risk) => risk.severity === "high").length;
 
   return {
     claims,
     risks,
+    metrics: {
+      claimCount: claims.length,
+      riskCount: risks.length,
+      highRiskCount
+    },
     ...rewrite
   };
 }

@@ -1,10 +1,20 @@
 import { ClaimMatch, EvidenceMatchResult, Product, RiskFlag, StreamSummary } from "@/types";
+import { generateBuyerQuestions } from "@/services/generateBuyerQuestions";
 
-const defaultQuestions = [
-  "Can you show an official invoice or distributor letter on-screen?",
-  "What return terms apply if the product is not as described?",
-  "Can you demonstrate the product serial number or certification details live?"
-];
+function unique(values: string[]) {
+  return Array.from(new Set(values));
+}
+
+function describeTrustPosture(riskFlags: RiskFlag[], unverifiedCount: number) {
+  const highRiskCount = riskFlags.filter((risk) => risk.severity === "high").length;
+  if (highRiskCount >= 2 || unverifiedCount >= 3) return "Proceed with high caution";
+  if (highRiskCount === 1 || unverifiedCount >= 1) return "Proceed with caution";
+  return "Generally low-risk stream";
+}
+
+function humanizeClaim(type: ClaimMatch["claimType"]) {
+  return type.replace(/_/g, " ");
+}
 
 export function generateSummary(params: {
   product: Product;
@@ -13,35 +23,41 @@ export function generateSummary(params: {
   riskFlags: RiskFlag[];
 }): StreamSummary {
   const { product, claims, evidenceMatches, riskFlags } = params;
+  const claimsMade = unique(claims.map((claim) => humanizeClaim(claim.claimType)));
+  const demonstrated = unique(
+    evidenceMatches
+      .filter((match) => match.evidenceStatus === "shown")
+      .map((match) => match.supportingEvidence?.title)
+      .filter((item): item is string => Boolean(item))
+  );
+  const unverified = unique(
+    evidenceMatches
+      .filter((match) => match.evidenceStatus !== "shown")
+      .map((match) => match.supportingEvidence?.title ?? match.note)
+  );
+  const buyerQuestions = generateBuyerQuestions({
+    claims,
+    evidenceMatches,
+    riskFlags
+  });
 
-  const claimsMade = Array.from(new Set(claims.map((c) => c.claimType)));
-  const demonstrated = evidenceMatches
-    .filter((m) => m.evidenceStatus === "shown")
-    .map((m) => m.supportingEvidence?.title)
-    .filter((item): item is string => Boolean(item));
-  const unverified = evidenceMatches
-    .filter((m) => m.evidenceStatus !== "shown")
-    .map((m) => m.supportingEvidence?.title ?? m.note);
-
-  const riskTypes = Array.from(new Set(riskFlags.map((r) => r.riskType)));
-  const buyerQuestions =
-    unverified.length > 0
-      ? unverified.slice(0, 3).map((u) => `Can you provide proof for: ${u}?`)
-      : defaultQuestions.slice(0, 2);
+  const trustPosture = describeTrustPosture(riskFlags, unverified.length);
+  const riskHighlights = unique(riskFlags.map((risk) => risk.riskType.replace(/_/g, " ")));
+  const riskText = riskHighlights.length > 0 ? riskHighlights.join(", ") : "none significant";
+  const verifiedCount = evidenceMatches.filter((match) => match.evidenceStatus === "shown").length;
 
   return {
     product: product.name,
-    claimsMade: claimsMade.map((claim) => claim.replace("_", " ")),
+    claimsMade,
     demonstrated,
     unverified,
     buyerQuestions,
-    shortSummary: `${product.name} was promoted with ${claims.length} claims. ${demonstrated.length} claim(s) had visible evidence, while ${unverified.length} remain unverified. Risk signals detected: ${
-      riskTypes.length > 0 ? riskTypes.join(", ").replace(/_/g, " ") : "none significant"
-    }.`
+    shortSummary: `${product.name} stream status: ${trustPosture}. ${claims.length} claim(s) detected, ${verifiedCount} backed by visible proof, ${unverified.length} unresolved. Risk signals: ${riskText}.`
   };
 }
 
 /**
  * AI integration note:
- * Replace with summarization LLM calls for multilingual, personalized buyer summaries.
+ * Replace this with an LLM summarizer that can produce multilingual summaries and
+ * audience-specific guidance while preserving StreamSummary output fields.
  */

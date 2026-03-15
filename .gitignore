@@ -4,3 +4,6 @@ dist
 out
 coverage
 *.log
+.env
+apps/*/dist
+pnpm-lock.yaml
