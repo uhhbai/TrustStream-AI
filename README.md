@@ -1,138 +1,188 @@
-# TrustStream AI MVP
+# TrustStream AI (Production-Oriented MVP)
 
-TrustStream AI is a demo-ready web prototype for livestream commerce trust and scam prevention in ASEAN.
+TrustStream AI is a real Chrome Extension + backend pipeline for trust and scam-risk analysis on livestream commerce pages.
 
-It helps:
-- Buyers detect risky claims during livestream shopping.
-- Sellers improve pitch language with evidence-first suggestions.
-- Safety teams monitor scam patterns across streams.
+This MVP is built as an actual working architecture (not a static demo) and supports:
+- Extension popup control flow
+- In-page floating trust overlay (draggable, collapsible, shadow DOM isolation)
+- Live transcript ingestion from page DOM
+- Manual transcript fallback for restricted pages
+- Backend session pipeline with real API endpoints
+- Near-real-time state updates per chunk and SSE event stream
+- Prisma + PostgreSQL persistence (with in-memory fallback for local testing)
 
-## Tech Stack
-- Next.js (App Router) + TypeScript
-- Tailwind CSS
-- Modular mock AI service layer (replaceable with real model/API calls)
+## Monorepo Structure
 
-## Project Structure
 ```text
-app/
-  page.tsx                 # Landing page
-  buyer/page.tsx           # Buyer demo dashboard
-  seller/page.tsx          # Seller mode
-  admin/page.tsx           # Admin/safety view
-components/
-  dashboard/               # Buyer dashboard and comparison UI
-  ui/                      # Reusable UI primitives
-data/
-  mockData.ts              # Seeded sellers, products, streams, flags
-services/
-  detectClaims.ts
-  classifyRiskFlags.ts
-  matchEvidence.ts
-  generateBuyerQuestions.ts
-  calculateTrustScore.ts
-  generateSummary.ts
-  rewriteSellerPitch.ts
-  analyzeSession.ts
-  analyzeSellerPitch.ts
-types/
-  index.ts                 # Domain models and interfaces
-lib/
-  useSimulatedStream.ts    # Transcript streaming simulation hook
+apps/
+  extension/       # MV3 Chrome extension (popup, background, content overlay, adapters)
+  server/          # Fastify API + session pipeline + Prisma persistence + SSE
+packages/
+  shared/          # Shared TypeScript contracts for extension/server
+  ai/              # AI service wrapper (deterministic logic + optional OpenAI fallback)
+  ui/              # Shared UI helpers
 ```
 
-## MVP Features
+## Core Flow
 
-### 1. Landing Page
-- Startup-style hero and value proposition
-- Problem/opportunity framing
-- 3-step “How it works”
-- CTA buttons:
-  - `Try Demo`
-  - `View Seller Mode`
+1. User clicks `Start Analysis` in extension popup.
+2. Background worker detects active tab + platform.
+3. Background calls `POST /api/session/start`.
+4. Content overlay is activated on the page.
+5. Adapter extracts live DOM text chunks (captions/product text/comments where available).
+6. Content script sends chunks to background (`CHUNK_DETECTED`).
+7. Background posts chunks to backend `POST /api/session/:id/transcript-chunk`.
+8. Backend analyzes chunk via `@truststream/ai` and updates state.
+9. Background relays state to content overlay (`ANALYSIS_UPDATE`) continuously.
 
-### 2. Buyer Demo Dashboard
-- Simulated livestream player (start/pause/reset + speed control)
-- Live transcript appears line-by-line
-- AI-detected claims panel with confidence labels
-- Trust card panel:
-  - Overall trust score
-  - Verified and unverified claims
-  - Risk flags
-  - Recommended buyer questions
-- 1-minute summary card for late viewers
-- Compare streams mini feature
-- ASEAN multilingual-ready UI mode toggle (placeholder)
-- Export summary PDF placeholder button
+## Implemented APIs
 
-### 3. Seller Mode
-- Paste transcript or upload `.txt`
-- Detect risky wording and claim signals
-- Rewrite into more trustworthy wording
-- Show trust improvement score and concrete recommendations
+- `POST /api/session/start`
+- `POST /api/session/:id/transcript-chunk`
+- `POST /api/session/:id/audio-chunk`
+- `GET /api/session/:id/state`
+- `GET /api/session/:id/events` (SSE)
+- `POST /api/session/:id/stop`
+- `GET /api/session/history`
+- `POST /api/analyze/text`
+- `POST /api/rewrite/seller-pitch`
 
-### 4. Admin / Safety View
-- Flagged stream list with risk levels
-- Top repeated scam patterns
-- Mock ASEAN country risk overview (heatmap-style placeholders)
+## AI Modules (`packages/ai`)
 
-## Mock AI Service Layer (AI-Ready Architecture)
+- `detectClaims(transcriptChunk, context)`
+- `classifyRiskFlags(transcriptChunk, context)`
+- `matchEvidence(claims, visiblePageData, sellerData, productData)`
+- `generateBuyerQuestions(claims, risks)`
+- `calculateTrustScore(claims, riskFlags, sellerSignals)`
+- `updateSessionSummary(existingSummary, newChunkAnalysis)`
+- `rewriteSellerPitch(text)`
 
-Current implementation is deterministic/rule-based, but isolated behind service functions so real AI can be swapped in later:
-- `detectClaims()`
-- `classifyRiskFlags()`
-- `matchEvidence()`
-- `generateSummary()`
-- `calculateTrustScore()`
-- `rewriteSellerPitch()`
+Behavior is deterministic by default with optional OpenAI-enhanced summary/rewrite if `OPENAI_API_KEY` is set.
+With `OPENAI_API_KEY`, chunk-level claim/risk analysis is also model-assisted and merged with rule-based signals.
+With `OPENAI_API_KEY` + `OPENAI_TRANSCRIBE_MODEL`, backend can transcribe captured video audio chunks for actual transcript ingestion (`audio_stt` source), when browser/page allows `video.captureStream()`.
 
-Each service includes comments on where to connect:
-- OpenAI model calls for extraction/summarization/rewriting
-- External verification APIs (documents, certifications)
-- Platform APIs (livestream metadata, moderation events)
+## Persistence
 
-## Seeded Demo Data
-Included in `data/mockData.ts`:
-- Sellers
-- Products
-- Evidence items
-- Livestream sessions
-- Claim patterns and risk outcomes
-- Admin flagged stream and ASEAN risk overview data
+`apps/server/prisma/schema.prisma` stores:
+- `Session`
+- `TranscriptChunk`
+- `Claim`
+- `RiskFlag`
+- `TrustScoreHistory`
+- `SummarySnapshot`
 
-Three scenarios are seeded:
-1. Mostly trustworthy beauty stream
-2. Mixed-quality fashion stream
-3. High-risk scammy electronics stream
+## Setup (Local Development)
 
-## Setup
-1. Install dependencies:
+### 1. Install dependencies
+
 ```bash
-npm install
+pnpm install
 ```
-2. Start dev server:
+
+### 2. Start PostgreSQL (recommended)
+
 ```bash
-npm run dev
-```
-3. Open:
-```text
-http://localhost:3000
+docker compose up -d
 ```
 
-## Hackathon Demo Flow
-1. Open landing page and explain ASEAN livestream scam problem.
-2. Click `Try Demo`.
-3. Choose a stream scenario and press `Start`.
-4. Show transcript lines appearing in real time.
-5. Highlight claims detected and trust score updates.
-6. Open the 1-minute summary for late buyers.
-7. Switch to `Seller Mode`.
-8. Paste risky pitch and show rewrite + trust improvement score.
-9. End on `Admin / Safety View` to show scam pattern monitoring and country risk overview.
+### 3. Configure environment
 
-## Future Roadmap
-- Real livestream connectors (TikTok Shop/Shopee when API-ready)
-- Real-time multilingual ASR + translation for ASEAN languages
-- Model-based claim extraction and deception detection
-- OCR-based document proof validation
-- Moderator workflow automation and case escalation API
-- Downloadable trust report export (real PDF generation)
+```bash
+cp .env.example .env
+```
+
+Adjust values as needed.
+
+### 4. Run Prisma (server)
+
+```bash
+pnpm prisma:generate
+pnpm prisma:migrate
+```
+
+### 5. Start backend
+
+```bash
+pnpm dev:server
+```
+
+Server default: `http://localhost:8787`
+
+### 6. Build extension
+
+```bash
+pnpm --filter @truststream/extension build
+```
+
+### 7. Load extension in Chrome
+
+1. Open `chrome://extensions`
+2. Enable `Developer mode`
+3. Click `Load unpacked`
+4. Select `apps/extension/dist`
+
+## How Real-Time Analysis Works
+
+- Content script extracts visible text via adapter observation.
+- Each chunk is transmitted to backend through background worker.
+- Backend runs analysis pipeline and updates trust state.
+- Overlay is updated with:
+  - trust score + label
+  - live transcript feed (timestamped chunks)
+  - detected claims + evidence status
+  - risk flags with trigger text + reasoning
+  - buyer guidance
+  - rolling summary
+
+## Supported Adapter System
+
+Implemented adapters:
+- `adapters/generic.ts`
+- `adapters/tiktok.ts`
+- `adapters/instagram.ts`
+- `adapters/shopee.ts`
+
+Adapter interface methods:
+- `detectPage()`
+- `extractVisibleText()`
+- `extractProductInfo()`
+- `observeDomChanges()`
+- `getPlatformName()`
+- `diagnostics()`
+
+## Testing
+
+Implemented tests:
+- `packages/ai/tests/engine.test.ts` (claim detection + trust scoring + question generation)
+- `apps/extension/tests/generic-adapter.test.ts` (adapter extraction)
+- `apps/server/tests/session.e2e.test.ts` (session start -> chunk ingest -> stop happy path)
+
+Run:
+
+```bash
+pnpm test
+```
+
+## Security & Privacy Notes
+
+- Analysis begins only after user action (`Start Analysis`).
+- No permanent audio storage is implemented by default.
+- Transcript storage is session-scoped and persisted for history when enabled with DB.
+- Data flow is extension -> backend API only for explicit session activity.
+
+## Known Platform Limitations
+
+- Some livestream platforms do not expose captions/text in accessible DOM.
+- Cross-origin iframe content may block direct extraction.
+- `tabCapture` audio capture is permission- and platform-dependent and is not fully universal.
+- When extraction is restricted, overlay enters **limited visibility mode** and supports manual text input fallback.
+- Exact product evidence validation still depends on what data is visible on-page.
+
+## Production Roadmap
+
+1. Add robust audio capture + streaming STT pipeline.
+2. Add authenticated user accounts and per-user session history.
+3. Add richer platform-specific adapters with selector versioning.
+4. Add queue-based async AI inference and Redis buffering.
+5. Add policy engine + compliance logging.
+6. Add dashboard app for moderation teams.

@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id              String             @id @default(cuid())
+  platform        String
+  pageUrl         String
+  tabId           Int?
+  title           String?
+  status          String
+  language        String?
+  sensitivity     String?
+  startedAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  endedAt         DateTime?
+  transcriptChunks TranscriptChunk[]
+  claims          Claim[]
+  riskFlags       RiskFlag[]
+  trustScores     TrustScoreHistory[]
+  summaries       SummarySnapshot[]
+}
+
+model TranscriptChunk {
+  id         String   @id @default(cuid())
+  sessionId  String
+  text       String
+  source     String
+  createdAt  DateTime @default(now())
+  rawPayload Json?
+  session    Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model Claim {
+  id                  String   @id @default(cuid())
+  sessionId           String
+  chunkId             String?
+  claimText           String
+  claimCategory       String
+  confidence          String
+  evidenceStatus      String
+  reasoning           String
+  recommendedQuestion String
+  createdAt           DateTime @default(now())
+  session             Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model RiskFlag {
+  id         String   @id @default(cuid())
+  sessionId  String
+  chunkId    String?
+  riskType   String
+  severity   String
+  confidence String
+  triggerText String
+  reasoning  String
+  createdAt  DateTime @default(now())
+  session    Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model TrustScoreHistory {
+  id          String   @id @default(cuid())
+  sessionId   String
+  score       Int
+  label       String
+  confidence  String
+  explanation Json
+  createdAt   DateTime @default(now())
+  session     Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model SummarySnapshot {
+  id             String   @id @default(cuid())
+  sessionId      String
+  rollingSummary String
+  buyerGuidance  Json
+  keyChanges     Json
+  createdAt      DateTime @default(now())
+  session        Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}

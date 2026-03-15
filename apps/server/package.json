@@ -1,0 +1,33 @@
+{
+  "name": "@truststream/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json --noEmit",
+    "start": "tsx src/index.ts",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.1",
+    "@truststream/ai": "workspace:*",
+    "@truststream/shared": "workspace:*",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.2.1",
+    "fastify-plugin": "^5.0.1",
+    "pino-pretty": "^13.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "prisma": "^6.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
