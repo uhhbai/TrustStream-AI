@@ -25,6 +25,7 @@ export function analyzeSession(sessionId: string, lineLimit?: number): SessionAn
   const progressRatio = lineLimit ? lineLimit / session.transcript.length : 1;
 
   const trustScore = calculateTrustScore({
+    claims,
     evidenceMatches,
     riskFlags,
     seller,

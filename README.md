@@ -28,6 +28,7 @@ services/
   detectClaims.ts
   classifyRiskFlags.ts
   matchEvidence.ts
+  generateBuyerQuestions.ts
   calculateTrustScore.ts
   generateSummary.ts
   rewriteSellerPitch.ts

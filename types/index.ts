@@ -14,6 +14,7 @@ export type RiskType =
   | "exaggerated_guarantee"
   | "deep_discount_pressure"
   | "unverifiable_authenticity"
+  | "refund_policy_conflict"
   | "pressure_tactic"
   | "emotional_manipulation";
 
@@ -67,6 +68,8 @@ export interface ClaimMatch {
   claimText: string;
   claimType: ClaimType;
   confidence: "High" | "Medium" | "Low";
+  matchedText?: string;
+  rationale?: string;
 }
 
 export interface EvidenceMatchResult {
@@ -74,6 +77,7 @@ export interface EvidenceMatchResult {
   evidenceStatus: EvidenceStatus;
   supportingEvidence?: ProductEvidence;
   note: string;
+  matchQuality?: "strong" | "partial" | "weak";
 }
 
 export interface RiskFlag {
@@ -84,6 +88,7 @@ export interface RiskFlag {
   severity: RiskSeverity;
   reason: string;
   confidence: "High" | "Medium" | "Low";
+  triggerText?: string;
 }
 
 export interface TrustScoreBreakdown {
@@ -92,6 +97,7 @@ export interface TrustScoreBreakdown {
   claimVerifiability: number;
   sellerCredibility: number;
   riskPenalty: number;
+  confidenceLabel?: "High" | "Medium" | "Low";
 }
 
 export interface StreamSummary {
