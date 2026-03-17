@@ -27,7 +27,6 @@ type ActiveOverlay = {
 };
 
 let activeOverlay: ActiveOverlay | null = null;
-const bodyLineSeen = new Set<string>();
 
 function hashText(text: string) {
   let hash = 0;
@@ -52,38 +51,6 @@ function segmentChunk(input: string) {
     .slice(0, 6);
 
   return segments.length > 0 ? segments : [normalized];
-}
-
-function looksUsableLine(text: string) {
-  if (text.length < 6) return false;
-  if (/^[\d\s%$.,:;!?-]+$/.test(text)) return false;
-  if (/^(follow|share|gift|mute|recharge|like|join|more)$/i.test(text)) return false;
-  return true;
-}
-
-function extractIncrementalBodyLines(doc: Document) {
-  const text = doc.body?.innerText ?? "";
-  const rows = text
-    .split("\n")
-    .map((row) => row.replace(/\s+/g, " ").trim())
-    .filter((row) => row.length > 0);
-
-  const incremental: string[] = [];
-  rows.forEach((row) => {
-    if (!looksUsableLine(row)) return;
-    if (bodyLineSeen.has(row)) return;
-    bodyLineSeen.add(row);
-    incremental.push(row);
-  });
-
-  // Keep memory bounded to avoid unbounded growth on long sessions.
-  if (bodyLineSeen.size > 5000) {
-    const kept = Array.from(bodyLineSeen).slice(-2500);
-    bodyLineSeen.clear();
-    kept.forEach((item) => bodyLineSeen.add(item));
-  }
-
-  return incremental.slice(-20);
 }
 
 function emitChunk(sessionId: string, text: string, source: "dom_caption" | "dom_product" | "manual" | "audio_stt") {
@@ -312,9 +279,7 @@ function startObservers() {
   activeOverlay.intervalId = window.setInterval(() => {
     if (!activeOverlay) return;
     const chunks = activeOverlay.adapter.extractVisibleText(document);
-    const bodyDiffChunks = extractIncrementalBodyLines(document);
-    processChunks(chunks, "dom_product");
-    processChunks(bodyDiffChunks, "dom_caption");
+    processChunks(chunks, "dom_caption");
     activeOverlay.diagnostics = activeOverlay.adapter.diagnostics(document);
     renderOverlay();
   }, 4200);
@@ -332,7 +297,6 @@ function stopOverlay() {
   activeOverlay.root.unmount();
   activeOverlay.host.remove();
   activeOverlay = null;
-  bodyLineSeen.clear();
 }
 
 function startOverlay(params: {
@@ -346,7 +310,6 @@ function startOverlay(params: {
   };
 }) {
   stopOverlay();
-  bodyLineSeen.clear();
 
   const host = document.createElement("div");
   host.style.position = "fixed";

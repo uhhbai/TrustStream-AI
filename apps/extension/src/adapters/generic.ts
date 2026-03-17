@@ -8,7 +8,6 @@ export const CAPTION_SELECTORS = [
   "[data-e2e*='subtitle']",
   "[class*='caption']",
   "[class*='subtitle']",
-  "[class*='comment']",
   "[class*='live'] [class*='text']"
 ];
 
@@ -18,11 +17,24 @@ function normalizeText(input: string) {
   return input.replace(/\s+/g, " ").trim();
 }
 
+const SYSTEM_NOISE_PATTERNS = [
+  /\bjoined\b/i,
+  /\bwelcome to tiktok live\b/i,
+  /\bcommunity guidelines\b/i,
+  /\bmust be 18 or older\b/i,
+  /\bgo live\b/i,
+  /\brecharge and send gifts\b/i,
+  /\bhave fun interacting\b/i,
+  /\bviewer(s)?\b.*\bgifts\b/i,
+  /\bcreator(s)?\b.*\blive\b/i
+];
+
 function looksLikeActionableTranscript(text: string) {
   if (text.length < 6) return false;
   if (/^[\d\s%$.,:;!?-]+$/.test(text)) return false;
   if (/^(follow|recharge|mute|send|gift|share|comment|like|join|more)$/i.test(text)) return false;
   if (/^(new chrome available|for you|live|recharge)$/i.test(text)) return false;
+  if (SYSTEM_NOISE_PATTERNS.some((pattern) => pattern.test(text))) return false;
   return true;
 }
 
@@ -48,17 +60,7 @@ export class GenericAdapter implements SiteAdapter {
 
   extractVisibleText(doc: Document): string[] {
     const captionText = extractVisibleTextBySelectors(doc, CAPTION_SELECTORS);
-    const productText = extractVisibleTextBySelectors(doc, PRODUCT_SELECTORS);
-    const merged = Array.from(new Set([...captionText, ...productText])).filter(looksLikeActionableTranscript);
-
-    if (merged.length > 0) return merged.slice(0, 20);
-
-    const fallback = doc.body?.innerText
-      ?.split("\n")
-      .map((row) => normalizeText(row))
-      .filter((row) => row.length > 8 && looksLikeActionableTranscript(row))
-      .slice(0, 20);
-    return fallback ?? [];
+    return captionText.slice(0, 20);
   }
 
   extractProductInfo(doc: Document) {
@@ -80,36 +82,8 @@ export class GenericAdapter implements SiteAdapter {
     const observer = new MutationObserver((records) => {
       if (timer) window.clearTimeout(timer);
       timer = window.setTimeout(() => {
-        const fromMutations: string[] = [];
-        records.forEach((record) => {
-          if (record.type === "characterData") {
-            const text = normalizeText(record.target.textContent ?? "");
-            if (looksLikeActionableTranscript(text)) fromMutations.push(text);
-          }
-          if (record.type === "childList") {
-            record.addedNodes.forEach((node) => {
-              if (node.nodeType === Node.TEXT_NODE) {
-                const text = normalizeText(node.textContent ?? "");
-                if (looksLikeActionableTranscript(text)) fromMutations.push(text);
-                return;
-              }
-              if (node instanceof HTMLElement) {
-                const nodeText = normalizeText(node.innerText || node.textContent || "");
-                if (looksLikeActionableTranscript(nodeText)) fromMutations.push(nodeText);
-                node.querySelectorAll("*").forEach((child) => {
-                  const childText = normalizeText(
-                    (child as HTMLElement).innerText || child.textContent || ""
-                  );
-                  if (looksLikeActionableTranscript(childText)) fromMutations.push(childText);
-                });
-              }
-            });
-          }
-        });
-
         const text = this.extractVisibleText(doc);
-        const merged = Array.from(new Set([...fromMutations, ...text])).slice(0, 30);
-        if (merged.length > 0) onChunk(merged);
+        if (text.length > 0) onChunk(text.slice(0, 30));
       }, 700);
     });
 

@@ -350,12 +350,90 @@ function trustLabel(score: number): "trusted" | "caution" | "high_risk" {
   return "high_risk";
 }
 
+function detectPositiveTrustSignals(transcriptText: string) {
+  const normalized = transcriptText.toLowerCase();
+  const signals = [
+    {
+      key: "invoiceProof",
+      regex: /\b(show|share|provide).{0,24}\b(invoice|receipt|proof)\b|\binvoice\b/,
+      message: "Seller offered invoice or proof documentation."
+    },
+    {
+      key: "returnPolicy",
+      regex: /\b(return policy|refund policy|return terms|refund terms)\b/,
+      message: "Seller referenced written return or refund terms."
+    },
+    {
+      key: "resultsMayVary",
+      regex: /\b(results may vary|may vary depending on use|depends on use)\b/,
+      message: "Seller avoided absolute outcome promises."
+    },
+    {
+      key: "carefulReview",
+      regex: /\b(check|review).{0,18}\b(product details|details carefully)\b/,
+      message: "Seller encouraged buyers to review product details carefully."
+    },
+    {
+      key: "lowPressure",
+      regex: /\b(take your time|no pressure|before checkout|verify details first)\b/,
+      message: "Seller used low-pressure language instead of forcing checkout."
+    },
+    {
+      key: "liveProofOffer",
+      regex: /\b(show).{0,18}\b(live|on screen|on-screen)\b/,
+      message: "Seller offered to show evidence live."
+    }
+  ];
+
+  const matched = signals.filter((signal) => signal.regex.test(normalized));
+  return {
+    count: matched.length,
+    messages: matched.map((signal) => signal.message)
+  };
+}
+
 export function calculateTrustScore(
   claims: ClaimResult[],
   riskFlags: RiskFlagResult[],
-  sellerSignals?: AnalysisContext["sellerSignals"]
+  sellerSignals?: AnalysisContext["sellerSignals"],
+  transcriptSignalCount = 0,
+  transcriptText = ""
 ): TrustScoreBreakdown {
+  const positiveTrustSignals = detectPositiveTrustSignals(transcriptText);
+
   if (claims.length === 0 && riskFlags.length === 0) {
+    if (transcriptSignalCount > 0) {
+      const transcriptStabilityBoost = Math.min(14, Math.max(4, transcriptSignalCount * 2));
+      const positiveTrustBoost = Math.min(18, positiveTrustSignals.count * 5);
+      const sellerCredibility = sellerSignals?.verified ? 6 : 0;
+      const historyPenalty = (sellerSignals?.historyRiskCount ?? 0) * 2;
+      const score = Math.max(
+        0,
+        Math.min(100, 50 + transcriptStabilityBoost + positiveTrustBoost + sellerCredibility - historyPenalty)
+      );
+
+      return {
+        score,
+        label: trustLabel(score),
+        confidence:
+          transcriptSignalCount >= 4 || positiveTrustSignals.count >= 2 ? "Medium" : "Low",
+        explanation: {
+          positiveSignals: [
+            `Captured ${transcriptSignalCount} transcript chunk(s) without scam-pattern matches yet.`,
+            ...positiveTrustSignals.messages
+          ],
+          negativeSignals:
+            historyPenalty > 0 ? ["Seller historical risk records still reduce confidence."] : [],
+          weightedFactors: {
+            transcriptStabilityBoost,
+            positiveTrustBoost,
+            sellerCredibility,
+            historyPenalty: -historyPenalty
+          }
+        }
+      };
+    }
+
     return {
       score: 50,
       label: "caution",
@@ -378,6 +456,7 @@ export function calculateTrustScore(
 
   const verifiableEvidenceBoost = shownEvidence * 9;
   const transparencyBoost = Math.max(0, shownEvidence * 4 - unclearEvidence * 2);
+  const positiveTrustBoost = Math.min(18, positiveTrustSignals.count * 5);
 
   const negativeRisk = riskFlags.reduce((sum, risk) => {
     if (risk.severity === "high") return sum + 14;
@@ -386,11 +465,18 @@ export function calculateTrustScore(
   }, 0);
 
   const missingProofPenalty = notVerified * 10 + Math.max(0, unclearEvidence - shownEvidence) * 4;
-  const sellerCredibility = sellerSignals?.verified ? 8 : -4;
+  const sellerCredibility = sellerSignals?.verified ? 8 : 0;
   const historyPenalty = (sellerSignals?.historyRiskCount ?? 0) * 2;
 
   const raw =
-    60 + verifiableEvidenceBoost + transparencyBoost + sellerCredibility - negativeRisk - missingProofPenalty - historyPenalty;
+    60 +
+    verifiableEvidenceBoost +
+    transparencyBoost +
+    positiveTrustBoost +
+    sellerCredibility -
+    negativeRisk -
+    missingProofPenalty -
+    historyPenalty;
   const score = Math.max(0, Math.min(100, Math.round(raw)));
 
   const positiveSignals: string[] = [];
@@ -399,6 +485,7 @@ export function calculateTrustScore(
   if (shownEvidence > 0) positiveSignals.push(`${shownEvidence} claim(s) had visible supporting signals.`);
   if (sellerSignals?.verified) positiveSignals.push("Seller account appears verified.");
   if (riskFlags.length === 0) positiveSignals.push("No major manipulation patterns detected in this window.");
+  positiveSignals.push(...positiveTrustSignals.messages);
 
   if (notVerified > 0) negativeSignals.push(`${notVerified} claim(s) lacked verifiable proof.`);
   if (riskFlags.length > 0) negativeSignals.push(`${riskFlags.length} risk flag(s) detected.`);
@@ -414,6 +501,7 @@ export function calculateTrustScore(
       weightedFactors: {
         verifiableEvidenceBoost,
         transparencyBoost,
+        positiveTrustBoost,
         sellerCredibility,
         negativeRisk: -negativeRisk,
         missingProofPenalty: -missingProofPenalty,

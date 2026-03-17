@@ -62,11 +62,11 @@ export function OverlayApp({
             <div className="row">
               <div>
                 <div className="small">Trust score</div>
-                <div className="score">{state?.trustScore.score ?? 60}</div>
+                <div className="score">{state?.trustScore.score ?? "--"}</div>
               </div>
-              <span className={`badge ${labelClass}`}>{state?.trustScore.label ?? "caution"}</span>
+              <span className={`badge ${labelClass}`}>{state?.trustScore.label ?? "waiting"}</span>
             </div>
-            <div className="small">Confidence: {state?.trustScore.confidence ?? "Low"}</div>
+            <div className="small">Confidence: {state?.trustScore.confidence ?? "Waiting"}</div>
           </div>
 
           {limitedMode && (

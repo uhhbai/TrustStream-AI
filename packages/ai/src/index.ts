@@ -88,7 +88,13 @@ export async function analyzeTranscriptChunk(params: {
   const riskFlags = Array.from(dedupedRisksMap.values()).slice(0, 16);
 
   const suggestedQuestions = generateBuyerQuestions(claims, riskFlags);
-  const trustScore = calculateTrustScore(claims, riskFlags, params.context.sellerSignals);
+  const trustScore = calculateTrustScore(
+    claims,
+    riskFlags,
+    params.context.sellerSignals,
+    params.context.transcriptWindow.length,
+    params.context.transcriptWindow.join(" ")
+  );
 
   let summary = updateSessionSummary(params.existingSummary, {
     claims,

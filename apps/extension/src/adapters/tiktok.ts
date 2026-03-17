@@ -6,9 +6,7 @@ const TIKTOK_CAPTION_SELECTORS = [
   "[data-e2e*='caption']",
   "[class*='live-subtitle']",
   "[class*='Caption']",
-  "[class*='subtitle']",
-  "[class*='DivCommentItemContainer'] p",
-  "[class*='live-comment']"
+  "[class*='subtitle']"
 ];
 
 const TIKTOK_PRODUCT_SELECTORS = [
@@ -24,11 +22,23 @@ function normalizeText(input: string) {
   return input.replace(/\s+/g, " ").trim();
 }
 
+const TIKTOK_UI_NOISE_PATTERNS = [
+  /\bjoined\b/i,
+  /\bwelcome to tiktok live\b/i,
+  /\bcommunity guidelines\b/i,
+  /\bmust be 18 or older\b/i,
+  /\bgo live\b/i,
+  /\brecharge and send gifts\b/i,
+  /\bhave fun interacting\b/i,
+  /\bfollow host\b/i
+];
+
 function isUsefulLine(text: string) {
   if (text.length < 5) return false;
-  if (!/[a-zA-Z]/.test(text)) return false;
+  if (!/\p{L}/u.test(text)) return false;
   if (/^(follow|share|recharge|gift|mute|join|like)$/i.test(text)) return false;
   if (/^[\d\s%$.,:;!?-]+$/.test(text)) return false;
+  if (TIKTOK_UI_NOISE_PATTERNS.some((pattern) => pattern.test(text))) return false;
   return true;
 }
 
@@ -44,19 +54,12 @@ export class TikTokAdapter extends GenericAdapter {
   extractVisibleText(doc: Document): string[] {
     const chunks: string[] = [];
 
-    [...TIKTOK_CAPTION_SELECTORS, ...TIKTOK_PRODUCT_SELECTORS].forEach((selector) => {
+    TIKTOK_CAPTION_SELECTORS.forEach((selector) => {
       doc.querySelectorAll(selector).forEach((node) => {
         const text = normalizeText(node.textContent ?? "");
         if (isUsefulLine(text)) chunks.push(text);
       });
     });
-
-    const pinned = Array.from(
-      doc.querySelectorAll("[class*='comment'], [data-e2e*='comment']")
-    )
-      .map((el) => normalizeText(el.textContent ?? ""))
-      .filter(isUsefulLine);
-    chunks.push(...pinned);
 
     const unique = Array.from(new Set(chunks));
     if (unique.length > 0) return unique.slice(0, 30);
