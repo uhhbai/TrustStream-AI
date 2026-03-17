@@ -59,3 +59,27 @@ describe("question generation", () => {
     expect(questions.length).toBeGreaterThan(0);
   });
 });
+
+describe("provisional scoring", () => {
+  it("moves above 50 after several clean transcript chunks", () => {
+    const score = calculateTrustScore([], [], undefined, 4);
+
+    expect(score.score).toBeGreaterThan(50);
+    expect(score.explanation.positiveSignals[0]).toContain("Captured 4 transcript chunk");
+  });
+
+  it("rewards transparent low-pressure seller language", () => {
+    const safeTranscript = [
+      "Please check the product details carefully.",
+      "I can show the invoice and return policy live.",
+      "Results may vary depending on use.",
+      "Take your time before checkout."
+    ].join(" ");
+
+    const score = calculateTrustScore([], [], undefined, 4, safeTranscript);
+
+    expect(score.score).toBeGreaterThan(75);
+    expect(score.label).toBe("trusted");
+    expect(score.explanation.positiveSignals.some((item) => item.includes("invoice"))).toBe(true);
+  });
+});

@@ -17,4 +17,16 @@ describe("GenericAdapter", () => {
     expect(chunks.length).toBeGreaterThan(0);
     expect(product.productName).toContain("Ultra Glow");
   });
+
+  it("does not fall back to unrelated body text when no caption selectors exist", () => {
+    document.body.innerHTML = `
+      <div>Hahahahahahahhahaha</div>
+      <div>Current video quality lasts for 1s.</div>
+    `;
+
+    const adapter = new GenericAdapter();
+    const chunks = adapter.extractVisibleText(document);
+
+    expect(chunks).toHaveLength(0);
+  });
 });
