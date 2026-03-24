@@ -30,6 +30,16 @@ export function OverlayApp({
   const limitedMode = diagnosticsMode === "limited_visibility";
   const labelClass = useMemo(() => state?.trustScore.label ?? "caution", [state?.trustScore.label]);
 
+  const displayExtractionMode = diagnosticsMode === "dom" ? "Live text" : "Manual assist";
+
+  const displaySource = (source: string) => {
+    if (source === "dom_caption") return "Live text";
+    if (source === "audio_stt") return "Audio transcript";
+    if (source === "manual") return "Manual input";
+    if (source === "dom_product") return "Product info";
+    return "Analysis input";
+  };
+
   const sendManual = () => {
     if (!manualInput.trim()) return;
     onSendManualChunk(manualInput.trim());
@@ -44,7 +54,7 @@ export function OverlayApp({
           <div className="small">
             {platform} | {state?.status ?? "listening"}
           </div>
-          <div className="small">Extraction mode: {diagnosticsMode}</div>
+          <div className="small">Analysis source: {displayExtractionMode}</div>
         </div>
         <div className="row">
           <button className="btn btnGhost" onClick={() => setCollapsed((prev) => !prev)}>
@@ -97,7 +107,7 @@ export function OverlayApp({
                   <div key={line.chunkId} className="item">
                     <div>{line.text}</div>
                     <div className="small">
-                      {line.source} | {new Date(line.timestamp).toLocaleTimeString()}
+                      {displaySource(line.source)} | {new Date(line.timestamp).toLocaleTimeString()}
                     </div>
                   </div>
                 ))}
